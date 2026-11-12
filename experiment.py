@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass
 from math import isqrt, log2
 from random import Random
@@ -63,7 +64,7 @@ def build_encodings(catalog: tuple[Product, ...], seed: int) -> dict[str, dict[s
     }
 
 
-def exact_top_k(scores: dict[str, int], items: set[str], k: int) -> tuple[str, ...]:
+def exact_top_k(scores: Mapping[str, float], items: set[str], k: int) -> tuple[str, ...]:
     return tuple(sorted(items, key=lambda item_id: (-scores[item_id], item_id))[:k])
 
 
@@ -75,13 +76,13 @@ class SearchResult:
 
 def constrained_search(
     codes: dict[str, Code],
-    scores: dict[str, int],
+    scores: Mapping[str, float],
     feasible: set[str],
     beam_width: int,
     k: int,
 ) -> SearchResult:
     """Score prefixes using the full catalog, then mask paths with no feasible leaf."""
-    prefix_scores: dict[Code, int] = defaultdict(int)
+    prefix_scores: dict[Code, float] = defaultdict(float)
     children: dict[Code, set[Code]] = defaultdict(set)
     leaves = {code: item_id for item_id, code in codes.items()}
     for item_id, code in codes.items():

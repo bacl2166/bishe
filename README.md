@@ -1,6 +1,50 @@
 # bishe
 
-## 价格约束下的商品编码实验
+## Amazon Reviews 2023 乐器数据初始实验
+
+使用 [Amazon Reviews 2023 的 Musical_Instruments 子集](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023#grouped-by-category)。本次运行读取[原始评论文件](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023/blob/main/raw/review_categories/Musical_Instruments.jsonl)前 128 MiB 中的完整记录，并使用[完整商品元数据](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023/blob/main/raw/meta_categories/meta_Musical_Instruments.jsonl)。评论文件按原始顺序截取，随后对符合条件的用户按种子抽样。需要 Python 3.10 或以上版本，无第三方依赖。
+
+在 PowerShell 中运行下面的命令，从镜像下载两个输入文件并执行实验。
+
+```powershell
+$dataDir = '../amazon-2023-musical-instruments'
+New-Item -ItemType Directory -Force $dataDir | Out-Null
+$source = 'https://hf-mirror.com/datasets/McAuley-Lab/Amazon-Reviews-2023/resolve/main/raw'
+curl.exe -fLsS --range 0-134217727 -o "$dataDir/reviews-128m.raw" "$source/review_categories/Musical_Instruments.jsonl"
+curl.exe -fLsS -o "$dataDir/meta_Musical_Instruments.jsonl" "$source/meta_categories/meta_Musical_Instruments.jsonl?download=true"
+python -B amazon_experiment.py --reviews "$dataDir/reviews-128m.raw" --metadata "$dataDir/meta_Musical_Instruments.jsonl" --review-prefix-bytes 134217728 --output results/amazon_musical_instruments.json
+python -B -m unittest -v
+```
+
+程序也支持完整 `.jsonl` 或 `.jsonl.gz` 输入。移除 `--review-prefix-bytes` 可处理完整评论文件。复现时可用以下 SHA-256 校验输入文件。
+
+- `reviews-128m.raw` `a8111672f00e00b71c631dd8232f6fff4cc9e07a421e2e0b91c7f895edab2c31`
+- `meta_Musical_Instruments.jsonl` `96f40b5440918f07e3e08e84b7a6874a06a5e32a9988998ca9520cfd1b51a12c`
+
+### 评测协议
+
+- **目录与请求**。以 `parent_asin` 匹配评论与商品。默认以 2022-01-01 UTC 为训练截止，选出截止前评论最多且有有效价格的 2,000 件商品。对训练期至少交互过 3 件目录商品、且截止后有评论的用户，以固定种子抽取最多 400 人。用户截止后的第一条评论是测试正例。正例落在目录外时仍计入覆盖率。
+- **约束**。唯一的购物约束是价格不超过训练目录的价格中位数。价格使用抓取时的商品快照。目录和阈值在读取测试结果前确定。
+- **两种推荐模型**。MostPopular 按训练评论数评分。ItemKNN 用训练用户的商品共现计算余弦相似度，每件商品保留最相似的 100 个邻居。推荐时对用户最近 50 次训练交互中的不同商品累加近邻相似度，并用微量热度平滑。两种模型使用同一目录、请求和可行集合。
+- **两种商品编码**。商品按价格从低到高分组，另以固定种子随机分组。默认 32 个组，两种方法的对应组容量相同。分别运行 beam 宽度 8、32，并以每个模型在可行集合上的精确 Top-10 为参考。
+- **指标**。在正例可行的请求上计算 HR@10、NDCG@10，同时报告正例可行率。OracleRecall@10 和节点数用于分析搜索。两种模型使用全可行集合评估，交互历史中已出现过的商品也可作为后续交互目标。
+
+### 试跑结果
+
+共读取 245,281 条评论。目录包含 2,000 件有价格的商品，价格上限为 25.90 美元，筛选后剩余 1,000 件。400 条测试请求中有 94 条的正例在目录内，53 条的正例仍可行。HR 和 NDCG 的分母为这 53 条请求。
+
+| 模型 | 搜索方式 | HR@10 | NDCG@10 | OracleRecall@10 | 平均评分节点数 |
+|---|---|---:|---:|---:|---:|
+| MostPopular | 精确排序 | 0.0566 | 0.0257 | 1.0000 | — |
+| MostPopular | 价格有序编码，beam 8 | 0.0755 | 0.0314 | 0.9000 | 520.0 |
+| MostPopular | 随机平衡编码，beam 8 | 0.0755 | 0.0300 | 0.6000 | 265.0 |
+| ItemKNN | 精确排序 | 0.0000 | 0.0000 | 1.0000 | — |
+| ItemKNN | 价格有序编码，beam 8 | 0.0000 | 0.0000 | 0.7985 | 517.6 |
+| ItemKNN | 随机平衡编码，beam 8 | 0.0189 | 0.0055 | 0.5208 | 286.7 |
+
+Beam 扩大到 32 时，两套编码都复现了各自模型的精确 Top-10。Beam 为 8 时，价格有序编码找回了更多模型高分商品，同时评分的节点也更多。ItemKNN 的精确排序在这 53 条请求中未命中正例。结果来自单个样本和种子，适合作为流程验证。完整输出见 [结果 JSON](results/amazon_musical_instruments.json)。
+
+## 价格约束下的合成数据演示
 
 本实验用五件模拟商品、一条购物请求和一套固定商品分数，比较不同商品编码在有限搜索预算下的表现。唯一的筛选条件是商品价格不超过预算上限。默认上限为 20 美元，历史交互正例设为 P3。
 

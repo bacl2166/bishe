@@ -1,0 +1,123 @@
+{
+  "price_cap_cents": 2590,
+  "review_rows": 245281,
+  "priced_items": 84876,
+  "catalog_items": 2000,
+  "catalog_train_reviews": 80712,
+  "catalog_train_users": 47548,
+  "feasible_items": 1000,
+  "eligible_test_users": 1521,
+  "test_requests": 400,
+  "in_catalog_positives": 94,
+  "feasible_positives": 53,
+  "positive_feasible_rate": 0.1325,
+  "results": [
+    {
+      "model": "most_popular",
+      "encoding": "exact",
+      "beam_width": null,
+      "hr": 0.05660377358490566,
+      "ndcg": 0.025710119005827016,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": null
+    },
+    {
+      "model": "most_popular",
+      "encoding": "price_ordered",
+      "beam_width": 8,
+      "hr": 0.07547169811320754,
+      "ndcg": 0.03143652858015976,
+      "oracle_recall": 0.9,
+      "scored_nodes_mean": 520
+    },
+    {
+      "model": "most_popular",
+      "encoding": "price_ordered",
+      "beam_width": 32,
+      "hr": 0.05660377358490566,
+      "ndcg": 0.025710119005827016,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": 1016
+    },
+    {
+      "model": "most_popular",
+      "encoding": "random_balanced",
+      "beam_width": 8,
+      "hr": 0.07547169811320754,
+      "ndcg": 0.029984847773725322,
+      "oracle_recall": 0.6,
+      "scored_nodes_mean": 265
+    },
+    {
+      "model": "most_popular",
+      "encoding": "random_balanced",
+      "beam_width": 32,
+      "hr": 0.05660377358490566,
+      "ndcg": 0.025710119005827016,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": 1032
+    },
+    {
+      "model": "item_knn",
+      "encoding": "exact",
+      "beam_width": null,
+      "hr": 0,
+      "ndcg": 0.0,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": null
+    },
+    {
+      "model": "item_knn",
+      "encoding": "price_ordered",
+      "beam_width": 8,
+      "hr": 0,
+      "ndcg": 0.0,
+      "oracle_recall": 0.7985,
+      "scored_nodes_mean": 517.6
+    },
+    {
+      "model": "item_knn",
+      "encoding": "price_ordered",
+      "beam_width": 32,
+      "hr": 0,
+      "ndcg": 0.0,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": 1016
+    },
+    {
+      "model": "item_knn",
+      "encoding": "random_balanced",
+      "beam_width": 8,
+      "hr": 0.018867924528301886,
+      "ndcg": 0.005454053326752602,
+      "oracle_recall": 0.52075,
+      "scored_nodes_mean": 286.6875
+    },
+    {
+      "model": "item_knn",
+      "encoding": "random_balanced",
+      "beam_width": 32,
+      "hr": 0,
+      "ndcg": 0.0,
+      "oracle_recall": 1.0,
+      "scored_nodes_mean": 1032
+    }
+  ],
+  "config": {
+    "dataset": "Amazon Reviews 2023 / Musical_Instruments",
+    "review_prefix_bytes": 134217728,
+    "train_before_utc": "2022-01-01",
+    "max_items": 2000,
+    "max_test_users": 400,
+    "groups": 32,
+    "beam_widths": [
+      8,
+      32
+    ],
+    "top_k": 10,
+    "seed": 42,
+    "min_history_items": 3,
+    "max_history_length": 50,
+    "knn_neighbors": 100
+  }
+}
