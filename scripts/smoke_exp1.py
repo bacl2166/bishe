@@ -1,0 +1,63 @@
+"""Offline integration check using synthetic records in Amazon's input schema."""
+
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+
+def main():
+    repo = Path(__file__).resolve().parents[1]
+    with tempfile.TemporaryDirectory(prefix='exp1-smoke-') as temporary:
+        folder = Path(temporary)
+        metadata, reviews = [], []
+        for i in range(24):
+            metadata.append({
+                'parent_asin': f'item{i:02d}', 'title': f'brand{i % 3} guitar string material{i % 4}',
+                'description': [f'music accessory size{i % 2} steel strings'],
+                'price': 5 + i, 'categories': ['Musical Instruments', f'category{i % 4}'],
+                'details': {'Brand': f'brand{i % 3}', 'String Gauge': f'gauge{i % 2}'},
+            })
+        for user in range(36):
+            for position in range(8):
+                reviews.append({'user_id': f'user{user:02d}',
+                                'parent_asin': f'item{(user + position) % 24:02d}',
+                                'timestamp': f'2020-01-{position + 1:02d}', 'rating': 3 + position % 3})
+            for year, offset in ((2021, 8), (2022, 9)):
+                reviews.append({'user_id': f'user{user:02d}',
+                                'parent_asin': f'item{(user + offset) % 24:02d}',
+                                'timestamp': f'{year}-06-01', 'rating': 5})
+        for filename, values in (('meta.jsonl', metadata), ('reviews.jsonl', reviews)):
+            (folder / filename).write_text(''.join(json.dumps(value) + '\n' for value in values), encoding='utf-8')
+        config = json.loads((repo / 'configs/experiment1.json').read_text(encoding='utf-8'))
+        config.update(metadata=str(folder / 'meta.jsonl'), reviews=str(folder / 'reviews.jsonl'),
+                      max_items=24, min_item_interactions=1, min_history=3, max_users=3,
+                      max_requests=120, encoding_seeds=[7], scorer_seeds=[7], top_k=3,
+                      bootstrap_samples=10, budgets=[{'beam': 2}, {'beam': 100}],
+                      embeddings={'backend': 'tfidf_svd', 'dim': 8}, collaborative_dim=8,
+                      scorer={'device': 'cpu', 'epochs': 1, 'batch_size': 32, 'd_model': 8,
+                              'heads': 2, 'layers': 1, 'torch_threads': 2, 'max_train_samples': 100},
+                      tokenizer={'device': 'cpu', 'epochs': 1, 'batch_size': 24, 'branching': 3,
+                                 'depth': 2, 'codebook_size': 4, 'latent_dim': 8})
+        config_path = folder / 'config.json'
+        config_path.write_text(json.dumps(config), encoding='utf-8')
+        output = folder / 'output'
+        command = [sys.executable, '-B', '-m', 'exp1', '--config', str(config_path), '--output', str(output)]
+        subprocess.run(command, cwd=repo, check=True)
+        manifest = json.loads((output / 'manifest.json').read_text(encoding='utf-8'))
+        assert manifest['status'] == 'complete'
+        rows = []
+        for path in (output / 'rows').glob('*.json'):
+            rows.extend(json.loads(path.read_text(encoding='utf-8')))
+        assert len({row['encoding'] for row in rows}) == 12
+        assert len({row['scorer'] for row in rows}) == 3
+        for row in rows:
+            if row['beam'] == 100:
+                assert row['own_oracle_recall'] in (None, 1.0), row
+        subprocess.run(command + ['--resume'], cwd=repo, check=True)
+        print(f"Offline integration passed: {len(rows)} rows, 12 encoders, 3 scorers, resume verified.")
+
+
+if __name__ == '__main__':
+    main()

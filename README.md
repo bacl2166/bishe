@@ -1,5 +1,19 @@
 # bishe
 
+## 完整实验一
+
+已新增 `exp1` 服务器入口，包含十二种编码入口、九类约束/对照、MostPopular/ItemKNN/SASRec、三种概率处理、各自的精确排序、逐请求诊断和用户级配对区间。运行步骤见 [实验一服务器说明](docs/EXPERIMENT1.md)，方法适配范围见 [编码器说明](docs/TOKENIZERS.md)。
+
+```bash
+python -m pip install -r requirements.txt
+python -B -m unittest discover -v
+python -B scripts/smoke_exp1.py
+python scripts/download_amazon.py --output data
+python -u -m exp1 --config configs/experiment1.json
+```
+
+默认配置需要CUDA，CPU运行修改 `scorer.device` 和 `tokenizer.device`。论文编码方法使用明确标注的受控适配，并支持导入原作者的商品映射。正式训练与论文指标应依据相应协议核验。
+
 ## Amazon Reviews 2023 乐器数据初始实验
 
 使用 [Amazon Reviews 2023 的 Musical_Instruments 子集](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023#grouped-by-category)。本次运行读取[原始评论文件](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023/blob/main/raw/review_categories/Musical_Instruments.jsonl)前 128 MiB 中的完整记录，并使用[完整商品元数据](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023/blob/main/raw/meta_categories/meta_Musical_Instruments.jsonl)。评论文件按原始顺序截取，随后对符合条件的用户按种子抽样。需要 Python 3.10 或以上版本，无第三方依赖。
