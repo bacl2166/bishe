@@ -1,0 +1,64 @@
+{
+  "source_run": "runs/musical-experiment1",
+  "output": "runs/musical-experiment2",
+  "encodings": [
+    "semantic_hierarchical",
+    "collaborative_hierarchical",
+    "rqvae",
+    "rqkmeans",
+    "opq",
+    "letter",
+    "cost",
+    "seater",
+    "topotok",
+    "bonsai",
+    "random_balanced",
+    "attribute_first"
+  ],
+  "encoding_seeds": [
+    11,
+    22,
+    33
+  ],
+  "model_seeds": [
+    11,
+    22,
+    33
+  ],
+  "generator": {
+    "device": "cuda",
+    "d_model": 64,
+    "heads": 2,
+    "encoder_layers": 1,
+    "decoder_layers": 2,
+    "epochs": 20,
+    "patience": 3,
+    "batch_size": 128,
+    "max_train_samples": 50000,
+    "lr": 0.001,
+    "max_history": 50
+  },
+  "diagnostic_requests": 80,
+  "diagnostic_seed": 2026,
+  "top_k": 10,
+  "modes": [
+    "preserve",
+    "local"
+  ],
+  "budgets": [
+    {
+      "beam": 10
+    },
+    {
+      "beam": 30
+    },
+    {
+      "beam": 100
+    },
+    {
+      "beam": 100,
+      "nodes": 2000
+    }
+  ],
+  "bootstrap_samples": 1000
+}

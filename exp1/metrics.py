@@ -80,15 +80,16 @@ def summarize(rows, bootstrap_samples=1000, seed=2026):
         own_denominator = sum(row['own_exact_hr'] == 1 for row in group)
         result['evaluated_positives'] = sum(row['positive_feasible'] for row in group)
         result['exact_hits'] = denominator
-        result['lost_hits'] = sum(row['lost_hit'] for row in group)
-        result['gained_hits'] = sum(row['gained_hit'] for row in group)
+        result['lost_hits'] = sum(row['lost_hit'] or 0 for row in group)
+        result['gained_hits'] = sum(row['gained_hit'] or 0 for row in group)
         result['lost_hit_rate'] = result['lost_hits'] / denominator if denominator else None
-        result['own_lost_hit_rate'] = (sum(row['own_lost_hit'] for row in group) / own_denominator
+        result['own_lost_hit_rate'] = (sum(row['own_lost_hit'] or 0 for row in group) / own_denominator
                                        if own_denominator else None)
+        result['diagnostic_requests'] = sum(bool(row.get('diagnostic', 1)) for row in group)
         # Pair the same user's actual NDCG with its original exact NDCG.
         user_differences = defaultdict(list)
         for row in group:
-            if row['ndcg'] is not None:
+            if row['ndcg'] is not None and row['exact_ndcg'] is not None:
                 user_differences[row['user']].append(row['ndcg'] - row['exact_ndcg'])
         per_user = np.array([np.mean(values) for values in user_differences.values()])
         result['user_mean_ndcg_delta'] = float(per_user.mean()) if len(per_user) else None

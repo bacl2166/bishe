@@ -34,13 +34,14 @@ def download(url, destination):
             time.sleep(2)
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--category', default='Musical_Instruments')
+    parser.add_argument('--category', default='Musical_Instruments',
+                        help='Amazon category; suite domains: Musical_Instruments, Amazon_Fashion, Appliances')
     parser.add_argument('--output', type=Path, default=Path('data'))
     parser.add_argument('--endpoint', default='https://huggingface.co')
     parser.add_argument('--revision', default='main')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if not args.category.replace('_', '').isalnum():
         parser.error('category must contain only letters, numbers and underscores')
     args.output.mkdir(parents=True, exist_ok=True)
@@ -51,7 +52,10 @@ def main():
     }
     for name, url in urls.items():
         download(url, args.output / name)
-    (args.output / 'download_sources.json').write_text(json.dumps(urls, indent=2), encoding='utf-8')
+    manifest_path = args.output / 'download_sources.json'
+    sources = json.loads(manifest_path.read_text(encoding='utf-8')) if manifest_path.exists() else {}
+    sources.update(urls)
+    manifest_path.write_text(json.dumps(sources, indent=2), encoding='utf-8')
 
 
 if __name__ == '__main__':

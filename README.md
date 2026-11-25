@@ -1,5 +1,24 @@
 # bishe
 
+## 三个数据集与实验二
+
+新增 Musical Instruments、Amazon Fashion、Appliances 三个域，原始评论规模约为 300/250/210 万。三个域统一最多 3000 件商品、200 个评估用户、800 条请求和 50000 个模型训练样本，清洗后的实际规模与属性覆盖率分别审计。数据获取与完整配置见 [三域说明](docs/DATASETS.md)。
+
+实验二训练真正的 Transformer 生成推荐模型，支持全部十二种编码、原始概率与局部归一化两种解码、固定诊断请求的逐商品精确路径评分、HR/NDCG、搜索损失和断点续跑。方法和指标见 [实验二说明](docs/EXPERIMENT2.md)。论文方法的受控适配范围沿用 [编码器说明](docs/TOKENIZERS.md)。
+
+```bash
+python -m pip install -r requirements.txt
+python scripts/smoke_exp2.py
+python scripts/download_amazon.py --category Musical_Instruments --output data
+python scripts/download_amazon.py --category Amazon_Fashion --output data
+python scripts/download_amazon.py --category Appliances --output data
+python scripts/run_suite.py --experiment 1 --prepare-only
+python scripts/run_suite.py --experiment 1 --resume
+python scripts/run_suite.py --experiment 2 --resume
+```
+
+正式配置使用 CUDA，三域共训练 324 个生成模型。先检查数据审计；需缩小试跑时另存配置并减少编码、种子及请求预算。新增两个域的完整数据与正式 GPU 实验由服务器执行，本地流程检查不代表论文效果结论。
+
 ## 完整实验一
 
 已新增 `exp1` 服务器入口，包含十二种编码入口、九类约束/对照、MostPopular/ItemKNN/SASRec、三种概率处理、各自的精确排序、逐请求诊断和用户级配对区间。运行步骤见 [实验一服务器说明](docs/EXPERIMENT1.md)，方法适配范围见 [编码器说明](docs/TOKENIZERS.md)。
