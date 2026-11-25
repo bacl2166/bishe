@@ -227,7 +227,16 @@ def prepare(config: dict, output_dir: Path) -> dict:
                 target[user] = event
     all_histories = {u: [item for _, _, item in sorted(ev)] for u, ev in sorted(events.items())}
     min_history, max_users = int(cfg.get('min_history', 3)), cfg.get('max_users', 100)
-    eligible = [u for u, h in all_histories.items() if len(h) >= min_history and (u in validation_events or u in test_events)]
+    evaluation_split = cfg.get('evaluation_split', 'either')
+    if evaluation_split not in ('either', 'test', 'validation'):
+        raise ValueError('evaluation_split must be either, test or validation')
+    def has_evaluation_event(user):
+        if evaluation_split == 'test':
+            return user in test_events
+        if evaluation_split == 'validation':
+            return user in validation_events
+        return user in validation_events or user in test_events
+    eligible = [u for u, h in all_histories.items() if len(h) >= min_history and has_evaluation_event(u)]
     eligible.sort(key=lambda user: hashlib.sha256(f"{cfg.get('request_seed', 17)}:{user}".encode()).digest())
     if max_users is not None:
         if int(max_users) <= 0:
@@ -245,7 +254,9 @@ def prepare(config: dict, output_dir: Path) -> dict:
                  validation_labels=len(validation), test_labels=len(test),
                  validation_catalog_coverage=sum(x['in_catalog'] for x in validation) / len(validation) if validation else 0,
                  test_catalog_coverage=sum(x['in_catalog'] for x in test) / len(test) if test else 0,
-                 min_history=min_history, max_history=max_history, max_users=max_users)
+                 min_history=min_history, max_history=max_history, max_users=max_users,
+                 evaluation_split=evaluation_split,
+                 evaluation_selection='training history and event presence only; no positive item filtering')
     result = {'items': items, 'histories': histories,
               'train_sequences': list(all_histories.values()), 'validation': validation, 'test': test, 'audit': audit}
     output_dir = Path(output_dir)

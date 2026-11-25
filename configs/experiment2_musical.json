@@ -1,6 +1,6 @@
 {
-  "source_run": "runs/musical-experiment1",
-  "output": "runs/musical-experiment2",
+  "source_run": "runs/musical-experiment1-v2",
+  "output": "runs/musical-experiment2-v2",
   "encodings": [
     "semantic_hierarchical",
     "collaborative_hierarchical",

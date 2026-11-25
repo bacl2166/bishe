@@ -3,6 +3,7 @@ import gzip
 import json
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 from exp1.data import prepare, read_jsonl
 from exp1.constraints import build_requests, matches
@@ -115,6 +116,48 @@ class DataTests(unittest.TestCase):
         self.assertEqual(len(requests), 3)
         self.assertTrue(all(not r['feasible'] for r in requests))
         self.assertEqual(data['audit']['constraints']['skipped_families'][0]['family'], 'unsupported')
+
+    def test_capped_requests_cover_users_and_rotate_constraint_variants(self):
+        data = self.load()
+        data['test'] = [dict(data['test'][0], user=f'user{i:03d}') for i in range(60)]
+        data['histories'] = {row['user']: list(row['history']) for row in data['test']}
+        config = {**self.config, 'max_requests': 180,
+                  'constraint_families': ['no_filter', 'price', 'random_matched']}
+        requests = build_requests(data, config)
+        self.assertEqual(len(requests), 180)
+        counts = Counter(row['user'] for row in requests)
+        self.assertEqual(set(counts), set(data['histories']))
+        self.assertEqual(set(counts.values()), {3})
+        self.assertEqual(sum(row['family'] == 'no_filter' for row in requests), 60)
+        variants = Counter((row['strength'], row['variant']) for row in requests if row['family'] == 'price')
+        self.assertEqual(len(variants), 6)
+        self.assertEqual(set(variants.values()), {10})
+        lookup = {row['id']: row for row in requests}
+        for row in requests:
+            if row['family'] == 'random_matched':
+                self.assertIn(row['matched_request'], lookup)
+                self.assertEqual(len(row['feasible']), len(lookup[row['matched_request']]['feasible']))
+        changed = copy.deepcopy(data)
+        for row in changed['test']:
+            row['positive'] = 'a'
+        stable = lambda values: [(row['id'], row['rule'], row['feasible']) for row in values]
+        self.assertEqual(stable(requests), stable(build_requests(changed, config)))
+
+    def test_test_cohort_uses_event_presence_and_keeps_out_of_catalog_labels(self):
+        self.write(self.reviews, self.rows + [
+            self.row('validation_only', 'a', '2020-01-01', 5),
+            self.row('validation_only', 'b', '2021-01-01', 5),
+        ])
+        either = self.load(min_history=1)
+        selected = self.load(min_history=1, evaluation_split='test')
+        self.assertIn('validation_only', either['histories'])
+        self.assertNotIn('validation_only', selected['histories'])
+        self.assertEqual(selected['test'][0]['positive'], 'future')
+        self.assertFalse(selected['test'][0]['in_catalog'])
+        self.assertEqual(either['train_sequences'], selected['train_sequences'])
+        self.assertEqual(selected['audit']['evaluation_split'], 'test')
+        with self.assertRaisesRegex(ValueError, 'evaluation_split'):
+            self.load(evaluation_split='unknown')
 
 
 if __name__ == '__main__':

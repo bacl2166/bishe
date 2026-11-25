@@ -1,5 +1,5 @@
 {
-  "output": "runs/fashion-experiment1",
+  "output": "runs/fashion-experiment1-v2",
   "metadata": "data/meta_Amazon_Fashion.jsonl",
   "reviews": "data/Amazon_Fashion.jsonl",
   "train_before": "2021-01-01",
@@ -9,6 +9,7 @@
   "min_history": 5,
   "max_history": 50,
   "max_users": 200,
+  "evaluation_split": "test",
   "max_requests": 800,
   "request_seed": 2026,
   "constraint_families": [

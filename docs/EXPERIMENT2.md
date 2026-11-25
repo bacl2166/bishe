@@ -76,7 +76,7 @@ python scripts/run_suite.py --experiment 2 --resume
 python -m exp2 --config configs/experiment2_musical.json --resume
 ```
 
-完成输出位于 `runs/<domain>-experiment2/`。`models/` 保存最佳权重及训练记录，`rows/` 保存逐请求结果，顶层保存汇总、配对比较、诊断请求和来源 manifest。原始数据、模型、运行结果不提交到 Git。
+当前配置完成输出位于 `runs/<domain>-experiment2-v2/`，来源为 `runs/<domain>-experiment1-v2/`。`models/` 保存最佳权重及训练记录，`rows/` 保存逐请求结果，顶层保存汇总、配对比较、诊断请求和来源 manifest。原始数据、模型、运行结果不提交到 Git。
 
 `--resume` 复用完整模型 checkpoint 和完成的模型结果；若某模型训练中断且尚无完整 checkpoint，则重训该模型；若解码中断，则复用该模型并重做它的请求评估。并不从中途 optimizer 状态恢复。指纹覆盖代码、配置、冻结数据、请求、所用编码映射，以及 Python、NumPy、PyTorch 和 CUDA 构建版本；发生变更须使用新输出目录，避免拼接不同版本结果。严格拒绝来源目录与输出目录相同、缺少映射、目录不一致和历史被改写的请求。
 

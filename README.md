@@ -2,7 +2,7 @@
 
 ## 三个数据集与实验二
 
-新增 Musical Instruments、Amazon Fashion、Appliances 三个域，原始评论规模约为 300/250/210 万。三个域统一最多 3000 件商品、200 个评估用户、800 条请求和 50000 个模型训练样本，清洗后的实际规模与属性覆盖率分别审计。数据获取与完整配置见 [三域说明](docs/DATASETS.md)。
+新增 Musical Instruments、Amazon Fashion、Appliances 三个域，原始评论规模约为 300/250/210 万。三个域统一最多 3000 件商品、200 个有测试事件的评估用户、800 条请求和 50000 个模型训练样本，清洗后的实际规模与属性覆盖率分别审计。请求先保留无筛选基线，再轮转分配约束及成对随机对照；当前配置输出到 `runs/<domain>-experiment{1,2}-v2`，保留旧版审计结果。数据获取与完整配置见 [三域说明](docs/DATASETS.md)，修复背景见 [用户覆盖说明](docs/EVALUATION_COHORT.md)。
 
 实验二训练真正的 Transformer 生成推荐模型，支持全部十二种编码、原始概率与局部归一化两种解码、固定诊断请求的逐商品精确路径评分、HR/NDCG、搜索损失和断点续跑。方法和指标见 [实验二说明](docs/EXPERIMENT2.md)。论文方法的受控适配范围沿用 [编码器说明](docs/TOKENIZERS.md)。
 

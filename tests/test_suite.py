@@ -34,6 +34,8 @@ class ConfigTests(unittest.TestCase):
             self.assertEqual(len(first['encodings']), 12)
             self.assertEqual(second['encodings'], first['encodings'])
             self.assertEqual((first['max_items'], first['max_users'], first['max_requests']), (3000, 200, 800))
+            self.assertEqual(first['evaluation_split'], 'test')
+            self.assertEqual(first['output'], f'runs/{dataset}-experiment1-v2')
             self.assertEqual(first['scorer']['max_train_samples'], 50000)
             self.assertEqual(first['train_before'], '2021-01-01')
             self.assertEqual(first['test_from'], '2022-01-01')
@@ -46,7 +48,7 @@ class ConfigTests(unittest.TestCase):
             self.assertNotIn('review_prefix_bytes', first)
             self.assertIsNone(first['constraints'].get('spec_field'))
             self.assertEqual(second['source_run'], first['output'])
-            self.assertEqual(second['output'], f'runs/{dataset}-experiment2')
+            self.assertEqual(second['output'], f'runs/{dataset}-experiment2-v2')
             self.assertEqual(second['modes'], ['preserve', 'local'])
             self.assertEqual(second['budgets'], [{'beam': 10}, {'beam': 30}, {'beam': 100}, {'beam': 100, 'nodes': 2000}])
             self.assertEqual((second['diagnostic_requests'], second['diagnostic_seed'], second['top_k'], second['bootstrap_samples']),

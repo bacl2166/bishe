@@ -134,7 +134,7 @@ def build_requests(data: dict, config: dict) -> list[dict]:
              'random_control': 'uniform subset of full catalog, exact matched structural feasible count',
              'empty_feasible_policy': 'retain request and diagnostics',
              'metadata_temporal_limitation': data.get('audit', {}).get('metadata_temporal_limitation'),
-             'request_cap_policy': 'total structural requests plus matched controls, round robin by template and user'}
+             'request_cap_policy': 'reserve no-filter baselines, then rotate templates across users; keep control pairs intact'}
     split = cfg.get('request_split', 'test')
     labels = sorted(data.get(split, []), key=lambda label: hashlib.sha256(
         f"{seed}:{label['user']}".encode()).digest())
@@ -156,43 +156,52 @@ def build_requests(data: dict, config: dict) -> list[dict]:
             request['matched_request'] = matched
         requests.append(request)
         return request
-    # User round robin preserves all requested templates before progressing users.
-    for label in labels:
+    def schedule():
+        # Cover the cohort with its unconstrained baseline before spending the
+        # remaining budget. Each further round gives each user one structural
+        # request, rotating the initial template to avoid a first-family bias.
+        baseline = [template for template in templates if template[0] == 'no_filter']
+        constrained = [template for template in templates if template[0] != 'no_filter']
+        for template in baseline:
+            for label in labels:
+                yield label, *template
+        for round_index in range(len(constrained)):
+            for user_index, label in enumerate(labels):
+                yield label, *constrained[(round_index + user_index) % len(constrained)]
+
+    for label, family, strength, mode in schedule():
         user = str(label['user'])
-        for family, strength, mode in templates:
-            control = 'random_matched' in families and family != 'no_filter'
-            if len(requests) + 1 + int(control) > max_requests:
-                audit['cap_reached'] = True
-                break
-            rng = _rng(seed, user, family, 'alternatives')
-            rule = {'type': 'and'}
-            if family == 'no_filter':
-                rule = {'type': 'all'}
-            if family in ('price', 'price_max', 'price_interval', 'price_brand', 'price_brand_spec'):
-                index = {'tight': 0, 'medium': 1, 'loose': 2}[strength]
-                if mode == 'interval':
-                    # Nested intervals use training quartile boundaries exclusively.
-                    low_q, high_q = {'tight': (.25, .5), 'medium': (.25, .75), 'loose': (0, 1)}[strength]
-                    rule['price'] = {'min': int(round(_quantile(prices, low_q))),
-                                     'max': int(round(_quantile(prices, high_q)))}
-                else:
-                    rule['price'] = {'max': price_quartiles[index]}
-            if family in ('brand', 'price_brand', 'price_brand_spec'):
-                n = 2 if strength == 'loose' else 1
-                rule['brand'] = _weighted_choices(brands, n, rng)
-            if family == 'category':
-                rule['category'] = _weighted_choices(categories, 2 if mode == 'two' else 1, rng)
-            if family == 'rating':
-                rule['rating'] = {'min_mean': rating_quartiles[{'loose': 0, 'medium': 1, 'tight': 2}[strength]],
-                                  'min_count': rating_min_count}
-            if family in ('spec', 'price_brand_spec'):
-                rule['spec'] = {spec_field: _weighted_choices(specs, 2 if mode == 'two' else 1, rng)}
-            request = emit(label, family, strength, mode, rule)
-            if control:
-                random_rule = {'type': 'ids', 'ids': sorted(_rng(seed, user, 'random_matched', family, strength, mode).sample(item_ids, len(request['feasible'])))}
-                emit(label, 'random_matched', strength, mode, random_rule, request['id'])
-        if audit.get('cap_reached'):
+        control = 'random_matched' in families and family != 'no_filter'
+        if len(requests) + 1 + int(control) > max_requests:
+            audit['cap_reached'] = True
             break
+        rng = _rng(seed, user, family, 'alternatives')
+        rule = {'type': 'and'}
+        if family == 'no_filter':
+            rule = {'type': 'all'}
+        if family in ('price', 'price_max', 'price_interval', 'price_brand', 'price_brand_spec'):
+            index = {'tight': 0, 'medium': 1, 'loose': 2}[strength]
+            if mode == 'interval':
+                # Nested intervals use training quartile boundaries exclusively.
+                low_q, high_q = {'tight': (.25, .5), 'medium': (.25, .75), 'loose': (0, 1)}[strength]
+                rule['price'] = {'min': int(round(_quantile(prices, low_q))),
+                                 'max': int(round(_quantile(prices, high_q)))}
+            else:
+                rule['price'] = {'max': price_quartiles[index]}
+        if family in ('brand', 'price_brand', 'price_brand_spec'):
+            n = 2 if strength == 'loose' else 1
+            rule['brand'] = _weighted_choices(brands, n, rng)
+        if family == 'category':
+            rule['category'] = _weighted_choices(categories, 2 if mode == 'two' else 1, rng)
+        if family == 'rating':
+            rule['rating'] = {'min_mean': rating_quartiles[{'loose': 0, 'medium': 1, 'tight': 2}[strength]],
+                              'min_count': rating_min_count}
+        if family in ('spec', 'price_brand_spec'):
+            rule['spec'] = {spec_field: _weighted_choices(specs, 2 if mode == 'two' else 1, rng)}
+        request = emit(label, family, strength, mode, rule)
+        if control:
+            random_rule = {'type': 'ids', 'ids': sorted(_rng(seed, user, 'random_matched', family, strength, mode).sample(item_ids, len(request['feasible'])))}
+            emit(label, 'random_matched', strength, mode, random_rule, request['id'])
     audit['request_count'] = len(requests)
     audit['empty_feasible_count'] = sum(not r['feasible'] for r in requests)
     audit['family_counts'] = dict(Counter(r['family'] for r in requests))
@@ -200,6 +209,16 @@ def build_requests(data: dict, config: dict) -> list[dict]:
     audit['unique_users'] = len({r['user'] for r in requests})
     audit['family_unique_users'] = {family: len({r['user'] for r in requests if r['family'] == family})
                                     for family in sorted({r['family'] for r in requests})}
+    positive_requests = [request for request in requests if request['positive_feasible']]
+    audit['label_users'] = len({label['user'] for label in labels})
+    audit['positive_feasible_requests'] = len(positive_requests)
+    audit['positive_feasible_users'] = len({request['user'] for request in positive_requests})
+    audit['family_positive_feasible_requests'] = {
+        family: sum(request['family'] == family for request in positive_requests)
+        for family in audit['family_counts']}
+    audit['family_positive_feasible_users'] = {
+        family: len({request['user'] for request in positive_requests if request['family'] == family})
+        for family in audit['family_counts']}
     audit['joint_attribute_coverage'] = {
         'attributes': ['price', 'brand', 'category', 'rating_mean', f'specs.{spec_field}'],
         'known_items': sum(i.get('price') is not None and bool(i.get('brand')) and bool(i.get('category'))
