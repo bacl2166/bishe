@@ -1,5 +1,7 @@
 # bishe
 
+新增可选的[扩展预处理配置](docs/EXPANDED_DATA.md)：最多 10000 件商品、2000 位测试用户、20000 条请求，使用 `--config-dir configs/expanded`。先运行 `--prepare-only`，再用 `python -m exp1.audit --run <输出目录> --split validation` 检查各约束与强度的独立用户和有效正例数量。规模扩展不保证每种筛选都具有足够标签；审计后再固定正式模型评测预算。
+
 ## 三个数据集与实验二
 
 新增 Musical Instruments、Amazon Fashion、Appliances 三个域，原始评论规模约为 300/250/210 万。三个域统一最多 3000 件商品、200 个有测试事件的评估用户、800 条请求和 50000 个模型训练样本，清洗后的实际规模与属性覆盖率分别审计。请求先保留无筛选基线，再轮转分配约束及成对随机对照；当前配置输出到 `runs/<domain>-experiment{1,2}-v2`，保留旧版审计结果。数据获取与完整配置见 [三域说明](docs/DATASETS.md)，修复背景见 [用户覆盖说明](docs/EVALUATION_COHORT.md)。

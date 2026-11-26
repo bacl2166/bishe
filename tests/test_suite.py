@@ -24,6 +24,26 @@ def load_script(name):
 
 
 class ConfigTests(unittest.TestCase):
+    def test_expanded_profiles_share_sampling_and_keep_source_chains_separate(self):
+        shared = None
+        for domain in DATASETS:
+            folder = REPO_ROOT / 'configs' / 'expanded'
+            first = json.loads((folder / f'experiment1_{domain}.json').read_text())
+            second = json.loads((folder / f'experiment2_{domain}.json').read_text())
+            previous = json.loads((REPO_ROOT / 'configs' / f'experiment1_{domain}.json').read_text())
+            self.assertNotEqual(first['output'], previous['output'])
+            self.assertEqual(second['source_run'], first['output'])
+            self.assertNotEqual(second['output'], first['output'])
+            self.assertEqual(first['encodings'], second['encodings'])
+            self.assertEqual(first['evaluation_split'], 'test')
+            self.assertEqual(first['min_history'], previous['min_history'])
+            self.assertEqual(first['train_before'], previous['train_before'])
+            self.assertEqual(first['test_from'], previous['test_from'])
+            policy = {k: v for k, v in first.items() if k not in ('output','metadata','reviews')}
+            if shared is None:
+                shared = policy
+            self.assertEqual(shared, policy)
+
     def test_same_budgets_seeds_and_full_encodings_across_domains(self):
         reference = json.loads((REPO_ROOT / 'configs' / 'experiment1.json').read_text(encoding='utf-8'))
         shared = None
