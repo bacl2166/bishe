@@ -7,6 +7,17 @@ from exp1.search import Tree, prepare_distribution, search
 
 
 class MetricsTest(unittest.TestCase):
+    def test_log_score_loss_separates_objective_shift_and_search_and_handles_empty_output(self):
+        tree = Tree({'a': (1,1), 'b': (1,2), 'c': (2,1), 'd': (2,2)})
+        dist = prepare_distribution(tree, [.5,.1,.2,.2], {'b','c','d'}, 'local')
+        row = measure(dist, ['c','d'], search(dist,2,1), 'c', 2)
+        self.assertAlmostEqual(row['search_score_loss'], np.log(2.))
+        self.assertAlmostEqual(row['own_search_score_loss'], 0.)
+        empty = measure(dist, ['c','d'], search(dist,2,1,node_budget=1), 'c', 2)
+        self.assertIsNone(empty['search_score_loss'])
+        self.assertIsNone(empty['own_search_score_loss'])
+        self.assertEqual(empty['shortfall'], 1)
+
     def test_target_shift_and_search_loss_have_different_references(self):
         tree = Tree({'a': (1, 1), 'b': (1, 2), 'c': (2, 1), 'd': (2, 2)})
         dist = prepare_distribution(tree, [.5, .1, .2, .2], {'b', 'c', 'd'}, 'local')

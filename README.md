@@ -1,5 +1,7 @@
 # bishe
 
+当前价格专项采用[实验一分阶段方案](docs/PRICE_EXP1.md)，配置 `configs/price-exp1/experiment1_musical.json` 覆盖全部 12 种编码。使用 `python -m exp1 --config <配置> --stage prepare|encode|score|search --resume` 分步推进，首轮单种子核验流程与成本，价格上限/区间各三档并保留无筛选和配对随机对照。
+
 新增可选的[扩展预处理配置](docs/EXPANDED_DATA.md)：最多 10000 件商品、2000 位测试用户、20000 条请求，使用 `--config-dir configs/expanded`。先运行 `--prepare-only`，再用 `python -m exp1.audit --run <输出目录> --split validation` 检查各约束与强度的独立用户和有效正例数量。规模扩展不保证每种筛选都具有足够标签；审计后再固定正式模型评测预算。
 
 ## 三个数据集与实验二

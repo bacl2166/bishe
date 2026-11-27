@@ -24,6 +24,13 @@ def measure(dist, original_reference, result, positive, k):
     exact_hr, exact_ndcg = label_metrics(original_reference, positive, dist.feasible)
     own_hr, own_ndcg = label_metrics(own_reference, positive, dist.feasible)
     index = {item: i for i, item in enumerate(dist.tree.ids)}
+    n = min(k, len(result.items), len(original_reference))
+    raw_loss = own_loss = None
+    if n:
+        raw_loss = float(np.mean([np.log(dist.q[index[item]]) for item in original_reference[:n]]) -
+                         np.mean([np.log(dist.q[index[item]]) for item in result.items[:n]]))
+        own_loss = float(np.mean([dist.log_scores[index[item]] for item in own_reference[:n]]) -
+                         np.mean([dist.log_scores[index[item]] for item in result.items[:n]]))
     valid_indices = [index[item] for item in dist.feasible]
     kl = None
     if valid_indices:
@@ -40,6 +47,7 @@ def measure(dist, original_reference, result, positive, k):
         'oracle_recall': overlap(result.items, original_reference),
         'own_oracle_recall': overlap(result.items, own_reference),
         'objective_topk_overlap': overlap(own_reference, original_reference),
+        'search_score_loss': raw_loss, 'own_search_score_loss': own_loss,
         'distribution_kl': kl,
         'root_kl': dist.root_kl, 'root_invalid_mass': dist.root_invalid_mass,
         'lost_hit': int(exact_hr == 1 and hr == 0),

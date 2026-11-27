@@ -85,7 +85,34 @@ def input_digest(config):
     return digest.hexdigest()
 
 
-def run(config, output, resume=False, stop_after_prepare=False):
+def _check_stage_inputs(config, output, stage):
+    required = ['manifest.json', 'prepared.json', 'requests.json', 'audit.json']
+    if stage in ('score', 'search'):
+        required += ['semantic.npy', 'collaborative.npy', 'catalog.json']
+        for encoding in config['encodings']:
+            for seed in config['encoding_seeds']:
+                required += [f'encodings/{encoding}-{seed}/{name}'
+                             for name in ('mapping.json', 'tokenizer_manifest.json')]
+    if stage == 'search':
+        for scorer in config['scorers']:
+            for seed in config['scorer_seeds']:
+                required += [f'scorers/{scorer}-{seed}/{name}'
+                             for name in ('probabilities.npz', 'metadata.json')]
+    missing = [name for name in required if not (output / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f'{stage} stage requires previous stages; missing: ' + ', '.join(missing))
+
+
+def run(config, output, resume=False, stop_after_prepare=False, stage=None):
+    if stage not in (None, 'all', 'prepare', 'encode', 'score', 'search'):
+        raise ValueError(f'Unknown stage: {stage}')
+    if stop_after_prepare and stage not in (None, 'prepare'):
+        raise ValueError('--prepare-only conflicts with the requested stage')
+    stage = 'prepare' if stop_after_prepare else stage or 'all'
+    if stage in ('encode', 'score', 'search'):
+        _check_stage_inputs(config, output, stage)
+        if not resume:
+            raise ValueError(f'{stage} stage requires --resume to reuse previous stages')
     from .constraints import build_requests
     from .data import prepare
     from .scorers import collaborative_embeddings, fit_scorer
@@ -100,6 +127,7 @@ def run(config, output, resume=False, stop_after_prepare=False):
     if existing and not resume:
         raise ValueError('Output already exists. Use --resume or choose a new output directory.')
     manifest = {'fingerprint': fingerprint, 'config': config, 'python': sys.version,
+                'requested_stage': stage,
                 'platform': platform.platform(), 'status': 'running'}
     manifest['packages'] = {
         name: importlib.metadata.version(name)
@@ -121,7 +149,7 @@ def run(config, output, resume=False, stop_after_prepare=False):
     request_lookup = {request['id']: request for request in requests}
     write_json(output / 'audit.json', data['audit'])
     print(f"Catalog {len(data['items'])}; constraint requests {len(requests)}", flush=True)
-    if stop_after_prepare:
+    if stage == 'prepare':
         manifest.update(status='prepared', wall_seconds=time.perf_counter() - started)
         write_json(manifest_path, manifest)
         return
@@ -136,8 +164,15 @@ def run(config, output, resume=False, stop_after_prepare=False):
         with temporary.open('wb') as stream:
             np.save(stream, semantic)
         os.replace(temporary, embedding_path)
-    collab = collaborative_embeddings(data, config.get('collaborative_dim', 64), config.get('request_seed', 2026))
-    np.save(output / 'collaborative.npy', collab)
+    collaborative_path = output / 'collaborative.npy'
+    if resume and collaborative_path.exists():
+        collab = np.load(collaborative_path)
+    else:
+        collab = collaborative_embeddings(data, config.get('collaborative_dim', 64), config.get('request_seed', 2026))
+        temporary = collaborative_path.with_suffix('.npy.tmp')
+        with temporary.open('wb') as stream:
+            np.save(stream, collab)
+        os.replace(temporary, collaborative_path)
     write_json(output / 'catalog.json', data['items'])
     ids = [item['id'] for item in data['items']]
     id_index = {item: index for index, item in enumerate(ids)}
@@ -166,6 +201,12 @@ def run(config, output, resume=False, stop_after_prepare=False):
                 'max_branching': max(map(len, tree.children.values())),
             })
 
+    if stage == 'encode':
+        manifest.update(status='encoded', wall_seconds=time.perf_counter() - started)
+        write_json(manifest_path, manifest)
+        print(f'Encoding stage complete: {len(trees)} mappings', flush=True)
+        return
+
     summary_rows = []
     row_count = 0
     job_groups = {}
@@ -192,6 +233,8 @@ def run(config, output, resume=False, stop_after_prepare=False):
                     np.savez(stream, history_keys=np.array([json.dumps(key) for key in probabilities]),
                              probabilities=np.stack(list(probabilities.values())))
                 os.replace(temporary, probability_path)
+            if stage == 'score':
+                continue
             for (encoding, encoding_seed), tree in trees.items():
                 job_path = output / 'rows' / f'{scorer_name}-{scorer_seed}-{encoding}-{encoding_seed}.json'
                 job_groups.setdefault((scorer_name, scorer_seed, encoding_seed), {})[encoding] = job_path
@@ -247,6 +290,11 @@ def run(config, output, resume=False, stop_after_prepare=False):
                 row_count += len(rows)
                 summary_rows.extend(summarize(rows, config.get('bootstrap_samples', 1000)))
                 print(f'Finished {job_path.name}: {len(rows)} rows', flush=True)
+    if stage == 'score':
+        manifest.update(status='scored', wall_seconds=time.perf_counter() - started)
+        write_json(manifest_path, manifest)
+        print('Scoring stage complete: fixed catalog probabilities cached', flush=True)
+        return
     paired = []
     for paths in job_groups.values():
         if 'random_balanced' not in paths:
@@ -272,12 +320,13 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--resume', action='store_true')
     parser.add_argument('--prepare-only', action='store_true')
+    parser.add_argument('--stage', choices=('prepare', 'encode', 'score', 'search', 'all'))
     args = parser.parse_args()
     config = json.loads(args.config.read_text(encoding='utf-8'))
     if config.get('temperature', 1.0) <= 0:
         parser.error('temperature must be positive')
     output = args.output or Path(config.get('output', 'runs/experiment1'))
-    run(config, output, args.resume, args.prepare_only)
+    run(config, output, args.resume, args.prepare_only, args.stage)
 
 
 if __name__ == '__main__':
